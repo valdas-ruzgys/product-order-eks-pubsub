@@ -1,0 +1,40 @@
+# Dependencies
+node_modules
+package-lock.json
+yarn.lock
+
+# Build outputs
+dist
+build
+coverage
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode
+.idea
+
+# Generated files
+*.min.js
+*.min.css
+
+# Documentation
+CHANGELOG.md
+
+# Infrastructure
+infrastructure/cloudformation/*.yaml
+infrastructure/kubernetes/*.yaml
+infrastructure/dapr/*.yaml
+
+# Scripts
+scripts/*.sh
+
+# Git
+.git
+.gitignore

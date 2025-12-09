@@ -1,0 +1,193 @@
+npm run test:workflow
+
+> product-order-eks-pubsub@1.0.0 test:workflow
+> sh scripts/test-microservices-flow.sh
+
+🧪 Testing Microservices Flow
+==============================
+
+1️⃣  Checking Kubernetes connection...
+ ✓ Kubernetes cluster is accessible
+
+2️⃣  Checking Dapr installation...
+ ✓ Dapr is installed (4 running pods)
+dapr-operator-655f6bb8d7-5lqph           1/1   Running   0     117m
+dapr-placement-server-0                  1/1   Running   0     117m
+dapr-sentry-cf7fc457b-xskz6              1/1   Running   0     117m
+dapr-sidecar-injector-55bd69fdc4-q6ftp   1/1   Running   0     117m
+
+3️⃣  Checking microservices namespace...
+ ✓ Microservices namespace exists
+
+4️⃣  Checking service deployments...
+ ✓ Product service deployed (1 pods)
+ ✓ Order service deployed (1 pods)
+
+All pods in microservices namespace:
+order-service-5547d974d6-k4wwf     2/2   Running   0     117m
+product-service-5dc7dc6d6b-hkn2d   2/2   Running   0     117m
+
+5️⃣  Setting up port forwarding...
+   Product service pod: product-service-5dc7dc6d6b-hkn2d
+   Order service pod: order-service-5547d974d6-k4wwf
+ ✓ Port forwarding established
+
+6️⃣  Testing health endpoints...
+Product service: 
+ ✓ Healthy
+{
+  "status": "healthy",
+  "timestamp": "2025-12-09T20:00:00.539Z",
+  "service": "product-service"
+}
+
+Order service: 
+ ✓ Healthy
+{
+  "status": "healthy",
+  "timestamp": "2025-12-09T20:00:01.326Z",
+  "service": "order-service"
+}
+
+7️⃣  Creating test products...
+   Creating product 1: Gaming Laptop
+ ✓ Product 1 created
+{
+  "id": "3683c45e-a4dd-4c46-ba23-360c8a98c66e",
+  "name": "Gaming Laptop",
+  "description": "High-performance laptop for gaming",
+  "price": 1299.99,
+  "stock": 25,
+  "category": "Electronics",
+  "createdAt": "2025-12-09T20:00:01.845Z",
+  "updatedAt": "2025-12-09T20:00:01.845Z"
+}
+
+   Creating product 2: Wireless Mouse
+ ✓ Product 2 created
+{
+  "id": "b3be37c4-2007-4793-9a36-61c0ce15f21c",
+  "name": "Wireless Mouse",
+  "description": "Ergonomic wireless mouse",
+  "price": 29.99,
+  "stock": 150,
+  "category": "Accessories",
+  "createdAt": "2025-12-09T20:00:02.800Z",
+  "updatedAt": "2025-12-09T20:00:02.800Z"
+}
+
+   Creating product 3: Mechanical Keyboard
+ ✓ Product 3 created
+{
+  "id": "625a2d62-3650-4cd9-9c22-47cf135b6492",
+  "name": "Mechanical Keyboard",
+  "description": "RGB backlit mechanical keyboard",
+  "price": 149.99,
+  "stock": 75,
+  "category": "Accessories",
+  "createdAt": "2025-12-09T20:00:03.714Z",
+  "updatedAt": "2025-12-09T20:00:03.714Z"
+}
+
+8️⃣  Listing all products...
+ ✓ Found 3 products
+{
+  "success": true,
+  "data": [
+    {
+      "id": "3683c45e-a4dd-4c46-ba23-360c8a98c66e",
+      "name": "Gaming Laptop",
+      "description": "High-performance laptop for gaming",
+      "price": 1299.99,
+      "stock": 25,
+      "category": "Electronics",
+      "createdAt": "2025-12-09T20:00:01.845Z",
+      "updatedAt": "2025-12-09T20:00:01.845Z"
+    },
+    {
+      "id": "b3be37c4-2007-4793-9a36-61c0ce15f21c",
+      "name": "Wireless Mouse",
+      "description": "Ergonomic wireless mouse",
+      "price": 29.99,
+      "stock": 150,
+      "category": "Accessories",
+      "createdAt": "2025-12-09T20:00:02.800Z",
+      "updatedAt": "2025-12-09T20:00:02.800Z"
+    },
+    {
+      "id": "625a2d62-3650-4cd9-9c22-47cf135b6492",
+      "name": "Mechanical Keyboard",
+      "description": "RGB backlit mechanical keyboard",
+      "price": 149.99,
+      "stock": 75,
+      "category": "Accessories",
+      "createdAt": "2025-12-09T20:00:03.714Z",
+      "updatedAt": "2025-12-09T20:00:03.714Z"
+    }
+  ],
+  "count": 3
+}
+
+9️⃣  Creating test orders...
+   Product 1 ID: 3683c45e-a4dd-4c46-ba23-360c8a98c66e
+   Creating order 1 for Gaming Laptop...
+   Payload: {
+  "productId": "3683c45e-a4dd-4c46-ba23-360c8a98c66e",
+  "quantity": 2,
+  "customerName": "Alice Johnson"
+}
+ ✓ Order 1 created
+{
+  "id": "fc1d2587-5465-4346-add4-2e02425df701",
+  "productId": "3683c45e-a4dd-4c46-ba23-360c8a98c66e",
+  "quantity": 2,
+  "totalPrice": 2599.98,
+  "status": "PENDING",
+  "customerName": "Alice Johnson",
+  "createdAt": "2025-12-09T20:00:04.878Z",
+  "updatedAt": "2025-12-09T20:00:04.878Z"
+}
+
+   Creating order 2 for Wireless Mouse...
+ ✓ Order 2 created
+{
+  "id": "3742ea56-397c-43d5-97ce-451917815cf3",
+  "productId": "b3be37c4-2007-4793-9a36-61c0ce15f21c",
+  "quantity": 5,
+  "totalPrice": 149.95,
+  "status": "PENDING",
+  "customerName": "Bob Smith",
+  "createdAt": "2025-12-09T20:00:05.430Z",
+  "updatedAt": "2025-12-09T20:00:05.430Z"
+}
+
+   Listing all orders...
+ ✓ Found 2 orders
+{
+  "data": [
+    {
+      "id": "fc1d2587-5465-4346-add4-2e02425df701",
+      "productId": "3683c45e-a4dd-4c46-ba23-360c8a98c66e",
+      "quantity": 2,
+      "totalPrice": 2599.98,
+      "status": "PENDING",
+      "customerName": "Alice Johnson",
+      "createdAt": "2025-12-09T20:00:04.878Z",
+      "updatedAt": "2025-12-09T20:00:04.878Z"
+    },
+    {
+      "id": "3742ea56-397c-43d5-97ce-451917815cf3",
+      "productId": "b3be37c4-2007-4793-9a36-61c0ce15f21c",
+      "quantity": 5,
+      "totalPrice": 149.95,
+      "status": "PENDING",
+      "customerName": "Bob Smith",
+      "createdAt": "2025-12-09T20:00:05.430Z",
+      "updatedAt": "2025-12-09T20:00:05.430Z"
+    }
+  ],
+  "count": 2
+}
+
+==============================
+ ✓ Microservices flow test completed!

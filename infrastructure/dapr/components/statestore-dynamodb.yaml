@@ -1,0 +1,29 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+  namespace: microservices
+spec:
+  type: state.aws.dynamodb
+  version: v1
+  metadata:
+    - name: table
+      value: 'microservices-state' # Created by CloudFormation dapr-resources stack
+    - name: region
+      value: '${AWS_REGION}'
+    - name: accessKey
+      value: '' # Use IRSA instead
+    - name: secretKey
+      value: '' # Use IRSA instead
+
+    # TTL Configuration (optional)
+    - name: ttlAttributeName
+      value: 'ttl'
+
+    # Partitioning
+    - name: partitionKey
+      value: 'pk'
+
+scopes:
+  - product-service
+  - order-service

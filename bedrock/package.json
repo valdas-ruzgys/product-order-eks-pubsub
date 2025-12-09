@@ -1,0 +1,20 @@
+{
+  "name": "bedrock-analysis",
+  "version": "1.0.0",
+  "description": "Amazon Bedrock AI analysis scripts",
+  "scripts": {
+    "analyze": "ts-node analyze-architecture.ts",
+    "telemetry": "ts-node suggest-telemetry.ts",
+    "scaling": "ts-node recommend-scaling.ts",
+    "resilience": "ts-node resilience-patterns.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.698.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2"
+  }
+}

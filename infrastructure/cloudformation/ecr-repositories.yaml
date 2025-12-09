@@ -1,0 +1,98 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Amazon ECR Repositories for Microservices'
+
+Parameters:
+  EnvironmentName:
+    Description: Environment name prefix
+    Type: String
+    Default: microservices
+
+Resources:
+  # Product Service ECR Repository
+  ProductServiceRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: product-service
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: MUTABLE
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Keep last 10 images",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 10
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
+      Tags:
+        - Key: Name
+          Value: product-service
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  # Order Service ECR Repository
+  OrderServiceRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: order-service
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: MUTABLE
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Keep last 10 images",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 10
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
+      Tags:
+        - Key: Name
+          Value: order-service
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+Outputs:
+  ProductServiceRepositoryUri:
+    Description: Product Service ECR Repository URI
+    Value: !GetAtt ProductServiceRepository.RepositoryUri
+    Export:
+      Name: !Sub ${EnvironmentName}-ProductServiceRepoUri
+
+  ProductServiceRepositoryArn:
+    Description: Product Service ECR Repository ARN
+    Value: !GetAtt ProductServiceRepository.Arn
+    Export:
+      Name: !Sub ${EnvironmentName}-ProductServiceRepoArn
+
+  OrderServiceRepositoryUri:
+    Description: Order Service ECR Repository URI
+    Value: !GetAtt OrderServiceRepository.RepositoryUri
+    Export:
+      Name: !Sub ${EnvironmentName}-OrderServiceRepoUri
+
+  OrderServiceRepositoryArn:
+    Description: Order Service ECR Repository ARN
+    Value: !GetAtt OrderServiceRepository.Arn
+    Export:
+      Name: !Sub ${EnvironmentName}-OrderServiceRepoArn

@@ -1,0 +1,267 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Amazon EKS Cluster and Node Group for Microservices'
+
+Parameters:
+  EnvironmentName:
+    Description: Environment name prefix
+    Type: String
+    Default: microservices
+
+  ClusterName:
+    Description: EKS Cluster name
+    Type: String
+    Default: microservices-cluster
+
+  KubernetesVersion:
+    Description: Kubernetes version
+    Type: String
+    Default: '1.31'
+    AllowedValues:
+      - '1.31'
+      - '1.30'
+      - '1.29'
+      - '1.28'
+
+  NodeInstanceType:
+    Description: EC2 instance type for EKS nodes
+    Type: String
+    Default: t3.medium
+    AllowedValues:
+      - t3.small
+      - t3.medium
+      - t3.large
+      - t3.xlarge
+
+  NodeGroupMinSize:
+    Description: Minimum number of nodes
+    Type: Number
+    Default: 2
+    MinValue: 1
+
+  NodeGroupMaxSize:
+    Description: Maximum number of nodes
+    Type: Number
+    Default: 4
+    MinValue: 1
+
+  NodeGroupDesiredSize:
+    Description: Desired number of nodes
+    Type: Number
+    Default: 2
+    MinValue: 1
+
+Resources:
+  # EKS Cluster IAM Role
+  EKSClusterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ClusterName}-cluster-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: eks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+        - arn:aws:iam::aws:policy/AmazonEKSVPCResourceController
+      Tags:
+        - Key: Name
+          Value: !Sub ${ClusterName}-cluster-role
+
+  # EKS Cluster
+  EKSCluster:
+    Type: AWS::EKS::Cluster
+    Properties:
+      Name: !Ref ClusterName
+      Version: !Ref KubernetesVersion
+      RoleArn: !GetAtt EKSClusterRole.Arn
+      ResourcesVpcConfig:
+        SecurityGroupIds:
+          - Fn::ImportValue: !Sub ${EnvironmentName}-EKSClusterSecurityGroupId
+        SubnetIds:
+          - Fn::ImportValue: !Sub ${EnvironmentName}-PublicSubnet1
+          - Fn::ImportValue: !Sub ${EnvironmentName}-PublicSubnet2
+          - Fn::ImportValue: !Sub ${EnvironmentName}-PrivateSubnet1
+          - Fn::ImportValue: !Sub ${EnvironmentName}-PrivateSubnet2
+        EndpointPublicAccess: true
+        EndpointPrivateAccess: true
+      Logging:
+        ClusterLogging:
+          EnabledTypes:
+            - Type: api
+            - Type: audit
+            - Type: authenticator
+            - Type: controllerManager
+            - Type: scheduler
+      Tags:
+        - Key: Name
+          Value: !Ref ClusterName
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  # Node Group IAM Role
+  EKSNodeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ClusterName}-node-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+      Tags:
+        - Key: Name
+          Value: !Sub ${ClusterName}-node-role
+
+  # Additional IAM Policy for SNS/SQS/DynamoDB access (Dapr components)
+  NodeGroupDaprPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub ${ClusterName}-node-dapr-policy
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          # SNS Permissions for Dapr Pub/Sub
+          - Effect: Allow
+            Action:
+              - sns:Publish
+              - sns:Subscribe
+              - sns:Unsubscribe
+              - sns:CreateTopic
+              - sns:GetTopicAttributes
+              - sns:SetTopicAttributes
+              - sns:ListTopics
+              - sns:ListSubscriptionsByTopic
+              - sns:TagResource
+              - sns:UntagResource
+            Resource: '*'
+          # SQS Permissions for Dapr Pub/Sub
+          - Effect: Allow
+            Action:
+              - sqs:CreateQueue
+              - sqs:DeleteQueue
+              - sqs:GetQueueUrl
+              - sqs:GetQueueAttributes
+              - sqs:SetQueueAttributes
+              - sqs:SendMessage
+              - sqs:ReceiveMessage
+              - sqs:DeleteMessage
+              - sqs:ChangeMessageVisibility
+              - sqs:PurgeQueue
+            Resource: '*'
+          # DynamoDB Permissions for Dapr State Store
+          - Effect: Allow
+            Action:
+              - dynamodb:GetItem
+              - dynamodb:PutItem
+              - dynamodb:DeleteItem
+              - dynamodb:Query
+              - dynamodb:Scan
+              - dynamodb:BatchGetItem
+              - dynamodb:BatchWriteItem
+              - dynamodb:DescribeTable
+            Resource: '*'
+      Roles:
+        - !Ref EKSNodeRole
+
+  # EKS Node Group
+  EKSNodeGroup:
+    Type: AWS::EKS::Nodegroup
+    DependsOn: EKSCluster
+    Properties:
+      ClusterName: !Ref ClusterName
+      NodegroupName: !Sub ${ClusterName}-node-group
+      NodeRole: !GetAtt EKSNodeRole.Arn
+      Subnets:
+        - Fn::ImportValue: !Sub ${EnvironmentName}-PrivateSubnet1
+        - Fn::ImportValue: !Sub ${EnvironmentName}-PrivateSubnet2
+      InstanceTypes:
+        - !Ref NodeInstanceType
+      ScalingConfig:
+        MinSize: !Ref NodeGroupMinSize
+        MaxSize: !Ref NodeGroupMaxSize
+        DesiredSize: !Ref NodeGroupDesiredSize
+      AmiType: AL2_x86_64
+      UpdateConfig:
+        MaxUnavailable: 1
+      Labels:
+        Environment: !Ref EnvironmentName
+        NodeGroup: default
+      Tags:
+        Name: !Sub ${ClusterName}-node
+        Environment: !Ref EnvironmentName
+
+  # OIDC Provider for IRSA (IAM Roles for Service Accounts)
+  EKSOIDCProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      Url: !GetAtt EKSCluster.OpenIdConnectIssuerUrl
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        - 9e99a48a9960b14926bb7f3b02e22da2b0ab7280
+
+  # Service Account IAM Role for Pods
+  PodServiceAccountRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ClusterName}-pod-sa-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !GetAtt EKSOIDCProvider.Arn
+            Action: sts:AssumeRoleWithWebIdentity
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+      Tags:
+        - Key: Name
+          Value: !Sub ${ClusterName}-pod-sa-role
+
+Outputs:
+  ClusterName:
+    Description: EKS Cluster Name
+    Value: !Ref EKSCluster
+    Export:
+      Name: !Sub ${EnvironmentName}-ClusterName
+
+  ClusterEndpoint:
+    Description: EKS Cluster Endpoint
+    Value: !GetAtt EKSCluster.Endpoint
+    Export:
+      Name: !Sub ${EnvironmentName}-ClusterEndpoint
+
+  ClusterArn:
+    Description: EKS Cluster ARN
+    Value: !GetAtt EKSCluster.Arn
+    Export:
+      Name: !Sub ${EnvironmentName}-ClusterArn
+
+  ClusterSecurityGroup:
+    Description: EKS Cluster Security Group
+    Value:
+      Fn::ImportValue: !Sub ${EnvironmentName}-EKSClusterSecurityGroupId
+    Export:
+      Name: !Sub ${EnvironmentName}-ClusterSecurityGroup
+
+  NodeRoleArn:
+    Description: EKS Node IAM Role ARN
+    Value: !GetAtt EKSNodeRole.Arn
+    Export:
+      Name: !Sub ${EnvironmentName}-NodeRoleArn
+
+  OIDCProviderArn:
+    Description: OIDC Provider ARN
+    Value: !GetAtt EKSOIDCProvider.Arn
+    Export:
+      Name: !Sub ${EnvironmentName}-OIDCProviderArn

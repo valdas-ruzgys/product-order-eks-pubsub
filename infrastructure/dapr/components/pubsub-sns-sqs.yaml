@@ -1,0 +1,25 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: product-pubsub
+  namespace: microservices
+spec:
+  type: pubsub.aws.snssqs
+  version: v1
+  metadata:
+    # AWS Region
+    - name: region
+      value: '${AWS_REGION}'
+
+    # Message Handling
+    - name: messageVisibilityTimeout
+      value: '300'
+    - name: messageWaitTimeSeconds
+      value: '20'
+    - name: messageMaxNumber
+      value: '10'
+
+# Scopes define which apps can use this component
+scopes:
+  - product-service
+  - order-service

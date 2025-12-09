@@ -1,0 +1,190 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Main CloudFormation Stack for EKS Microservices with Dapr'
+
+Parameters:
+  EnvironmentName:
+    Description: Environment name prefix
+    Type: String
+    Default: microservices
+
+  ClusterName:
+    Description: EKS Cluster name
+    Type: String
+    Default: microservices-cluster
+
+  KubernetesVersion:
+    Description: Kubernetes version
+    Type: String
+    Default: '1.28'
+
+  NodeInstanceType:
+    Description: EC2 instance type for EKS nodes
+    Type: String
+    Default: t3.medium
+
+  NodeGroupMinSize:
+    Description: Minimum number of nodes
+    Type: Number
+    Default: 2
+
+  NodeGroupMaxSize:
+    Description: Maximum number of nodes
+    Type: Number
+    Default: 4
+
+  NodeGroupDesiredSize:
+    Description: Desired number of nodes
+    Type: Number
+    Default: 2
+
+Resources:
+  # Network Stack - VPC, Subnets, Security Groups
+  NetworkStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: ./network.yaml
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-network
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  # ECR Repositories Stack
+  ECRStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: ./ecr-repositories.yaml
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-ecr
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  # SNS/SQS Stack
+  MessagingStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: ./sns-sqs.yaml
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-messaging
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  # Dapr Resources Stack - DynamoDB and IAM Policies
+  DaprResourcesStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: ./dapr-resources.yaml
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-dapr-resources
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  # EKS Cluster Stack
+  EKSStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: NetworkStack
+    Properties:
+      TemplateURL: ./eks-cluster.yaml
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        ClusterName: !Ref ClusterName
+        KubernetesVersion: !Ref KubernetesVersion
+        NodeInstanceType: !Ref NodeInstanceType
+        NodeGroupMinSize: !Ref NodeGroupMinSize
+        NodeGroupMaxSize: !Ref NodeGroupMaxSize
+        NodeGroupDesiredSize: !Ref NodeGroupDesiredSize
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-eks
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+Outputs:
+  VpcId:
+    Description: VPC ID
+    Value: !GetAtt NetworkStack.Outputs.VpcId
+    Export:
+      Name: !Sub ${AWS::StackName}-VpcId
+
+  PublicSubnetIds:
+    Description: Public Subnet IDs
+    Value: !GetAtt NetworkStack.Outputs.PublicSubnetIds
+    Export:
+      Name: !Sub ${AWS::StackName}-PublicSubnetIds
+
+  PrivateSubnetIds:
+    Description: Private Subnet IDs
+    Value: !GetAtt NetworkStack.Outputs.PrivateSubnetIds
+    Export:
+      Name: !Sub ${AWS::StackName}-PrivateSubnetIds
+
+  ClusterName:
+    Description: EKS Cluster Name
+    Value: !GetAtt EKSStack.Outputs.ClusterName
+    Export:
+      Name: !Sub ${AWS::StackName}-ClusterName
+
+  ClusterEndpoint:
+    Description: EKS Cluster Endpoint
+    Value: !GetAtt EKSStack.Outputs.ClusterEndpoint
+    Export:
+      Name: !Sub ${AWS::StackName}-ClusterEndpoint
+
+  ProductServiceRepoUri:
+    Description: Product Service ECR Repository URI
+    Value: !GetAtt ECRStack.Outputs.ProductServiceRepositoryUri
+    Export:
+      Name: !Sub ${AWS::StackName}-ProductServiceRepoUri
+
+  OrderServiceRepoUri:
+    Description: Order Service ECR Repository URI
+    Value: !GetAtt ECRStack.Outputs.OrderServiceRepositoryUri
+    Export:
+      Name: !Sub ${AWS::StackName}-OrderServiceRepoUri
+
+  ProductEventsTopicArn:
+    Description: SNS Topic ARN for Product Events
+    Value: !GetAtt MessagingStack.Outputs.ProductEventsTopicArn
+    Export:
+      Name: !Sub ${AWS::StackName}-ProductEventsTopicArn
+
+  OrderServiceQueueUrl:
+    Description: SQS Queue URL for Order Service
+    Value: !GetAtt MessagingStack.Outputs.OrderServiceQueueUrl
+    Export:
+      Name: !Sub ${AWS::StackName}-OrderServiceQueueUrl
+
+  DaprStateStoreTableName:
+    Description: DynamoDB State Store Table Name
+    Value: !GetAtt DaprResourcesStack.Outputs.DaprStateStoreTableName
+    Export:
+      Name: !Sub ${AWS::StackName}-DaprStateStoreTableName
+
+  DynamoDBAccessPolicyArn:
+    Description: DynamoDB Access Policy ARN
+    Value: !GetAtt DaprResourcesStack.Outputs.DynamoDBAccessPolicyArn
+    Export:
+      Name: !Sub ${AWS::StackName}-DynamoDBAccessPolicyArn
+
+  SNSSQSAccessPolicyArn:
+    Description: SNS/SQS Access Policy ARN
+    Value: !GetAtt DaprResourcesStack.Outputs.SNSSQSAccessPolicyArn
+    Export:
+      Name: !Sub ${AWS::StackName}-SNSSQSAccessPolicyArn
+
+  CloudWatchLogsPolicyArn:
+    Description: CloudWatch Logs Policy ARN
+    Value: !GetAtt DaprResourcesStack.Outputs.CloudWatchLogsPolicyArn
+    Export:
+      Name: !Sub ${AWS::StackName}-CloudWatchLogsPolicyArn

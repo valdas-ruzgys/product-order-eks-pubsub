@@ -1,0 +1,156 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'SNS and SQS resources for Dapr Pub/Sub'
+
+Parameters:
+  EnvironmentName:
+    Description: Environment name prefix
+    Type: String
+    Default: microservices
+
+Resources:
+  # SNS Topic for Product Events
+  ProductEventsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: product-events
+      DisplayName: Product Events Topic
+      Tags:
+        - Key: Name
+          Value: product-events
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: ManagedBy
+          Value: Dapr
+
+  # SQS Queue for Order Service
+  OrderServiceQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: order-service-queue
+      VisibilityTimeout: 300
+      MessageRetentionPeriod: 1209600  # 14 days
+      ReceiveMessageWaitTimeSeconds: 20  # Long polling
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt OrderServiceDeadLetterQueue.Arn
+        maxReceiveCount: 3
+      Tags:
+        - Key: Name
+          Value: order-service-queue
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  # Dead Letter Queue for Order Service
+  OrderServiceDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: order-service-dlq
+      MessageRetentionPeriod: 1209600  # 14 days
+      Tags:
+        - Key: Name
+          Value: order-service-dlq
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  # SQS Queue Policy
+  OrderServiceQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref OrderServiceQueue
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sns.amazonaws.com
+            Action:
+              - sqs:SendMessage
+            Resource: !GetAtt OrderServiceQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Ref ProductEventsTopic
+
+  # SNS Subscription to SQS
+  OrderServiceSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      TopicArn: !Ref ProductEventsTopic
+      Endpoint: !GetAtt OrderServiceQueue.Arn
+      RawMessageDelivery: true
+
+  # IAM Policy for SNS/SQS Access
+  SNSSQSAccessPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub ${EnvironmentName}-sns-sqs-access
+      Description: Policy for microservices to access SNS and SQS
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: SNSPublish
+            Effect: Allow
+            Action:
+              - sns:Publish
+              - sns:GetTopicAttributes
+              - sns:ListTopics
+            Resource: !Ref ProductEventsTopic
+          - Sid: SQSConsume
+            Effect: Allow
+            Action:
+              - sqs:ReceiveMessage
+              - sqs:DeleteMessage
+              - sqs:GetQueueAttributes
+              - sqs:GetQueueUrl
+              - sqs:ChangeMessageVisibility
+            Resource:
+              - !GetAtt OrderServiceQueue.Arn
+              - !GetAtt OrderServiceDeadLetterQueue.Arn
+          - Sid: SQSList
+            Effect: Allow
+            Action:
+              - sqs:ListQueues
+            Resource: '*'
+
+Outputs:
+  ProductEventsTopicArn:
+    Description: SNS Topic ARN for Product Events
+    Value: !Ref ProductEventsTopic
+    Export:
+      Name: !Sub ${EnvironmentName}-ProductEventsTopicArn
+
+  ProductEventsTopicName:
+    Description: SNS Topic Name for Product Events
+    Value: !GetAtt ProductEventsTopic.TopicName
+    Export:
+      Name: !Sub ${EnvironmentName}-ProductEventsTopicName
+
+  OrderServiceQueueUrl:
+    Description: SQS Queue URL for Order Service
+    Value: !Ref OrderServiceQueue
+    Export:
+      Name: !Sub ${EnvironmentName}-OrderServiceQueueUrl
+
+  OrderServiceQueueArn:
+    Description: SQS Queue ARN for Order Service
+    Value: !GetAtt OrderServiceQueue.Arn
+    Export:
+      Name: !Sub ${EnvironmentName}-OrderServiceQueueArn
+
+  OrderServiceDeadLetterQueueUrl:
+    Description: Dead Letter Queue URL for Order Service
+    Value: !Ref OrderServiceDeadLetterQueue
+    Export:
+      Name: !Sub ${EnvironmentName}-OrderServiceDLQUrl
+
+  OrderServiceDeadLetterQueueArn:
+    Description: Dead Letter Queue ARN for Order Service
+    Value: !GetAtt OrderServiceDeadLetterQueue.Arn
+    Export:
+      Name: !Sub ${EnvironmentName}-OrderServiceDLQArn
+
+  SNSSQSAccessPolicyArn:
+    Description: IAM Policy ARN for SNS/SQS Access
+    Value: !Ref SNSSQSAccessPolicy
+    Export:
+      Name: !Sub ${EnvironmentName}-SNSSQSAccessPolicyArn

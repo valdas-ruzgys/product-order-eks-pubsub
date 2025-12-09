@@ -1,0 +1,157 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Dapr Resources - DynamoDB State Store and IAM Policies'
+
+Parameters:
+  EnvironmentName:
+    Description: Environment name prefix
+    Type: String
+    Default: microservices
+
+  EKSNodeRoleName:
+    Description: Name of the EKS Node IAM Role (will be created by eksctl)
+    Type: String
+    Default: ''
+
+Resources:
+  # DynamoDB State Store Table
+  DaprStateStore:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${EnvironmentName}-state
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+      TimeToLiveSpecification:
+        Enabled: true
+        AttributeName: ttl
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-dapr-statestore
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # IAM Policy for DynamoDB Access
+  DynamoDBAccessPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub ${EnvironmentName}-DynamoDB-Policy
+      Description: Policy for Dapr DynamoDB statestore access
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - dynamodb:PutItem
+              - dynamodb:GetItem
+              - dynamodb:UpdateItem
+              - dynamodb:DeleteItem
+              - dynamodb:Query
+              - dynamodb:Scan
+              - dynamodb:BatchGetItem
+              - dynamodb:BatchWriteItem
+              - dynamodb:DescribeTable
+            Resource: !GetAtt DaprStateStore.Arn
+
+  # IAM Policy for SNS/SQS Access
+  SNSSQSAccessPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub ${EnvironmentName}-SNS-SQS-Policy
+      Description: Policy for Dapr SNS/SQS pubsub access
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: SQSAccess
+            Effect: Allow
+            Action:
+              - sqs:SendMessage
+              - sqs:ReceiveMessage
+              - sqs:DeleteMessage
+              - sqs:GetQueueAttributes
+              - sqs:GetQueueUrl
+              - sqs:ChangeMessageVisibility
+              - sqs:CreateQueue
+              - sqs:DeleteQueue
+              - sqs:SetQueueAttributes
+              - sqs:TagQueue
+              - sqs:UntagQueue
+            Resource: '*'
+          - Sid: SNSAccess
+            Effect: Allow
+            Action:
+              - sns:Publish
+              - sns:GetTopicAttributes
+              - sns:SetTopicAttributes
+              - sns:ListTopics
+              - sns:CreateTopic
+              - sns:DeleteTopic
+              - sns:Subscribe
+              - sns:Unsubscribe
+              - sns:ListSubscriptionsByTopic
+              - sns:TagResource
+              - sns:UntagResource
+            Resource: '*'
+
+  # IAM Policy for CloudWatch Logs
+  CloudWatchLogsPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub ${EnvironmentName}-CloudWatch-Logs-Policy
+      Description: Policy for CloudWatch Logs and Container Insights
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: CloudWatchLogs
+            Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+              - logs:DescribeLogGroups
+              - logs:DescribeLogStreams
+            Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/containerinsights/${EnvironmentName}-cluster/*
+          - Sid: CloudWatchMetrics
+            Effect: Allow
+            Action:
+              - cloudwatch:PutMetricData
+            Resource: '*'
+            Condition:
+              StringEquals:
+                cloudwatch:namespace: ContainerInsights
+
+Outputs:
+  DaprStateStoreTableName:
+    Description: DynamoDB State Store Table Name
+    Value: !Ref DaprStateStore
+    Export:
+      Name: !Sub ${AWS::StackName}-StateStoreTableName
+
+  DaprStateStoreTableArn:
+    Description: DynamoDB State Store Table ARN
+    Value: !GetAtt DaprStateStore.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-StateStoreTableArn
+
+  DynamoDBAccessPolicyArn:
+    Description: DynamoDB Access Policy ARN
+    Value: !Ref DynamoDBAccessPolicy
+    Export:
+      Name: !Sub ${AWS::StackName}-DynamoDBPolicyArn
+
+  SNSSQSAccessPolicyArn:
+    Description: SNS/SQS Access Policy ARN
+    Value: !Ref SNSSQSAccessPolicy
+    Export:
+      Name: !Sub ${AWS::StackName}-SNSSQSPolicyArn
+
+  CloudWatchLogsPolicyArn:
+    Description: CloudWatch Logs Policy ARN
+    Value: !Ref CloudWatchLogsPolicy
+    Export:
+      Name: !Sub ${AWS::StackName}-CloudWatchLogsPolicyArn
